@@ -6,7 +6,9 @@ const ALLOWED = [
   'uploads.mangadex.org',
   'api.comick.fun',
   'meo.comick.pictures',
-  'cmdxd98sb0x3yprd.mangadex.network',
+  'meo2.comick.pictures',
+  // MangaDex at-home CDN nodes — these are dynamic subdomains
+  'mangadex.network',
 ];
 
 export default async function handler(req, res) {
