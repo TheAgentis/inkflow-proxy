@@ -1,5 +1,5 @@
 // api/proxy.js  — Vercel serverless function
-// Proxies MangaDex, Comick, and MangaReader requests with CORS headers
+// Proxies MangaDex, Comick requests with CORS headers
 
 const ALLOWED = [
   'api.mangadex.org',
@@ -7,12 +7,27 @@ const ALLOWED = [
   'api.comick.fun',
   'meo.comick.pictures',
   'meo2.comick.pictures',
-  // MangaDex at-home CDN nodes — these are dynamic subdomains
+  // MangaDex at-home CDN — dynamic hostnames, allow all subdomains
   'mangadex.network',
+  'mangadex.org',
+  // some MangaDex CDN nodes use s2/s5 style hostnames
+  's2.mangadex.org',
+  's5.mangadex.org',
 ];
 
+function isAllowed(host) {
+  // exact match
+  if (ALLOWED.includes(host)) return true;
+  // subdomain match — e.g. abc123.mangadex.network
+  for (const a of ALLOWED) {
+    if (host.endsWith('.' + a)) return true;
+  }
+  // allow any *.mangadex.* domain for CDN flexibility
+  if (host.includes('mangadex')) return true;
+  return false;
+}
+
 export default async function handler(req, res) {
-  // CORS — allow your GitHub Pages site (and any origin for simplicity)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -32,14 +47,12 @@ export default async function handler(req, res) {
   try {
     parsed = new URL(target);
   } catch {
-    res.status(400).json({ error: 'Invalid URL' });
+    res.status(400).json({ error: 'Invalid URL: ' + target });
     return;
   }
 
-  // Security: only proxy allowed domains
   const host = parsed.hostname;
-  const allowed = ALLOWED.some(a => host === a || host.endsWith('.' + a));
-  if (!allowed) {
+  if (!isAllowed(host)) {
     res.status(403).json({ error: 'Domain not allowed: ' + host });
     return;
   }
@@ -47,21 +60,21 @@ export default async function handler(req, res) {
   try {
     const upstream = await fetch(target, {
       headers: {
-        'User-Agent': 'Inkflow/1.0 (manga reader; contact@inkflow)',
+        'User-Agent': 'Mozilla/5.0 (compatible; Inkflow/1.0)',
         'Referer': 'https://mangadex.org/',
+        'Origin': 'https://mangadex.org',
       },
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(20000),
     });
 
-    const contentType = upstream.headers.get('content-type') || 'application/json';
+    const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
     res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
+    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
     res.status(upstream.status);
 
-    // Stream the body
     const buffer = await upstream.arrayBuffer();
     res.send(Buffer.from(buffer));
   } catch (err) {
-    res.status(502).json({ error: 'Upstream error: ' + err.message });
+    res.status(502).json({ error: 'Upstream fetch failed: ' + err.message, target });
   }
 }
