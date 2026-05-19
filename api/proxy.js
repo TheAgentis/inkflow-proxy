@@ -64,7 +64,7 @@ export default async function handler(req, res) {
         'Referer': 'https://mangadex.org/',
         'Origin': 'https://mangadex.org',
       },
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(25000),
     });
 
     const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
