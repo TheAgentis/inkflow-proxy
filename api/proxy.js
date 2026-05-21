@@ -1,19 +1,20 @@
 // api/proxy.js — Vercel serverless function (CommonJS)
 
 function isAllowed(host) {
-  const allowed = [
-    'api.mangadex.org',
-    'uploads.mangadex.org',
-  ];
-  if (allowed.includes(host)) return true;
   if (host.includes('mangadex')) return true;
+  if (host.includes('mangapark')) return true;
+  if (host.includes('mangakakalot')) return true;
+  if (host.includes('manganelo')) return true;
+  if (host.includes('chapmanganelo')) return true;
+  if (host.includes('bato.to')) return true;
+  if (host.includes('comick')) return true;
   return false;
 }
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -36,19 +37,25 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const response = await fetch(target, {
+    const fetchOpts = {
+      method: req.method === 'POST' ? 'POST' : 'GET',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; Inkflow/1.0)',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json, text/html, */*',
+        'Content-Type': req.headers['content-type'] || 'application/json',
         'Referer': 'https://mangadex.org/',
         'Origin': 'https://mangadex.org',
       },
-    });
+    };
+    if (req.method === 'POST' && req.body) {
+      fetchOpts.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    }
 
+    const response = await fetch(target, fetchOpts);
     const contentType = response.headers.get('content-type') || 'application/octet-stream';
     res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
+    res.setHeader('Cache-Control', 's-maxage=120, stale-while-revalidate=600');
     res.status(response.status);
-
     const buffer = await response.arrayBuffer();
     return res.send(Buffer.from(buffer));
   } catch (err) {
